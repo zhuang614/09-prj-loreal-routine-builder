@@ -1,1 +1,1 @@
-# 09-prj-loreal-routine-builder
+# Project 9: L'Oréal Routine Builder
