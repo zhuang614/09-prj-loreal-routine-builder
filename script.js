@@ -1,6 +1,8 @@
 /* DOM elements */
 const categoryFilter = document.getElementById("categoryFilter");
 const productsContainer = document.getElementById("productsContainer");
+const chatForm = document.getElementById("chatForm");
+const chatWindow = document.getElementById("chatWindow");
 
 // Show initial placeholder message
 productsContainer.innerHTML = `
@@ -42,4 +44,12 @@ categoryFilter.addEventListener("change", async (e) => {
   );
 
   displayProducts(filteredProducts);
+});
+
+/* Handle chat form submit */
+chatForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+
+  // Show message
+  chatWindow.innerHTML = "Connect to the OpenAI API for a response!";
 });
