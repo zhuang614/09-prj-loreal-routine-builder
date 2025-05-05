@@ -1,23 +1,24 @@
-/* DOM elements */
+/* Get references to DOM elements */
 const categoryFilter = document.getElementById("categoryFilter");
 const productsContainer = document.getElementById("productsContainer");
 const chatForm = document.getElementById("chatForm");
 const chatWindow = document.getElementById("chatWindow");
 
-// Show initial placeholder message
+/* Show initial placeholder until user selects a category */
 productsContainer.innerHTML = `
   <div class="placeholder-message">
     Select a category to view products
   </div>
 `;
 
-/* Load and display products */
+/* Load product data from JSON file */
 async function loadProducts() {
   const response = await fetch("products.json");
   const data = await response.json();
   return data.products;
 }
 
+/* Create HTML for displaying product cards */
 function displayProducts(products) {
   productsContainer.innerHTML = products
     .map(
@@ -34,11 +35,13 @@ function displayProducts(products) {
     .join("");
 }
 
-/* Handle category change */
+/* Filter and display products when category changes */
 categoryFilter.addEventListener("change", async (e) => {
   const products = await loadProducts();
   const selectedCategory = e.target.value;
 
+  /* filter() creates a new array containing only products 
+     where the category matches what the user selected */
   const filteredProducts = products.filter(
     (product) => product.category === selectedCategory
   );
@@ -46,10 +49,9 @@ categoryFilter.addEventListener("change", async (e) => {
   displayProducts(filteredProducts);
 });
 
-/* Handle chat form submit */
+/* Chat form submission handler - placeholder for OpenAI integration */
 chatForm.addEventListener("submit", (e) => {
   e.preventDefault();
 
-  // Show message
   chatWindow.innerHTML = "Connect to the OpenAI API for a response!";
 });
