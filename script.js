@@ -12,6 +12,5 @@ chatForm.addEventListener("submit", (e) => {
   const userMessage = userInput.value.trim();
 
   // Show message
-  chatWindow.innerHTML = "<strong>You asked:</strong> " + userMessage;
-  userInput.value = "";
+  chatWindow.innerHTML = "Connect to the OpenAI API for a response!";
 });

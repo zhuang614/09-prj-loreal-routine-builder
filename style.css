@@ -24,6 +24,11 @@ body {
   padding-top: 50px;
 }
 
+.logo {
+  width: 250px;
+  margin-bottom: 15px;
+}
+
 .site-title {
   font-size: 22px;
   font-weight: 500;
