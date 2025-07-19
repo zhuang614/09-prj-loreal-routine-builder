@@ -1,46 +1,32 @@
-/* Get references to DOM elements */
+// Beginner-friendly L'Oréal Routine Builder main script
+
+// Get references to DOM elements
 const categoryFilter = document.getElementById("categoryFilter");
 const productsContainer = document.getElementById("productsContainer");
+const selectedProductsList = document.getElementById("selectedProductsList");
+const generateButton = document.getElementById("generateRoutine");
 const chatForm = document.getElementById("chatForm");
 const chatWindow = document.getElementById("chatWindow");
-const selectedProductsList = document.getElementById("selectedProductsList");
 
-/* Show initial placeholder until user selects a category */
-productsContainer.innerHTML = `
-  <div class="placeholder-message">
-    Select a category to view products
-  </div>
-`;
-
-// This script enables product selection and updates the UI for selected products.
+/* Cloudflare Worker endpoint for AI API */
+const WORKER_ENDPOINT = "https://loreal-chatbot.zhuang61.workers.dev/";
 
 // Store all products and selected products
 let allProducts = [];
 let selectedProducts = [];
 
-/* Load product data from JSON file */
+/* Array to store conversation history */
+let conversationHistory = [];
+
+// Store the full chat history for follow-up questions
+let chatHistory = [];
+
+// Load products from products.json
 async function loadProducts() {
   const response = await fetch("products.json");
   const data = await response.json();
   allProducts = data.products;
   showProducts(allProducts);
-}
-
-/* Create HTML for displaying product cards */
-function displayProducts(products) {
-  productsContainer.innerHTML = products
-    .map(
-      (product) => `
-    <div class="product-card">
-      <img src="${product.image}" alt="${product.name}">
-      <div class="product-info">
-        <h3>${product.name}</h3>
-        <p>${product.brand}</p>
-      </div>
-    </div>
-  `
-    )
-    .join("");
 }
 
 // Show products in the grid, filtered by category if needed
@@ -55,46 +41,83 @@ function showProducts(products) {
       card.classList.add("selected");
     }
 
-    // Card content with a description toggle button and description area
+    // Card content with a description modal trigger button
     card.innerHTML = `
       <img src="${product.image}" alt="${product.name}">
       <div class="product-name">${product.name}</div>
       <div class="product-category">${capitalize(product.category)}</div>
-      <div class="product-brand">${product.brand}</div>
-      <button class="desc-btn" aria-expanded="false">Show Description</button>
-      <div class="product-desc" hidden>${product.description}</div>
+      <div class="product-brand">${product.brand ? product.brand : ""}</div>
+      <button class="desc-btn" aria-haspopup="dialog">Show Description</button>
     `;
 
     // Click to select/unselect (but not when clicking the description button)
-    card.addEventListener("click", (e) => {
+    card.addEventListener("click", function (e) {
       if (!e.target.classList.contains("desc-btn")) {
         toggleProduct(product);
       }
     });
 
-    // Description toggle logic
+    // Description modal logic
     const descBtn = card.querySelector(".desc-btn");
-    const descDiv = card.querySelector(".product-desc");
     descBtn.addEventListener("click", function (e) {
       e.stopPropagation(); // Prevent card selection
-      const isOpen = !descDiv.hasAttribute("hidden");
-      if (isOpen) {
-        descDiv.setAttribute("hidden", "");
-        descBtn.textContent = "Show Description";
-        descBtn.setAttribute("aria-expanded", "false");
-      } else {
-        descDiv.removeAttribute("hidden");
-        descBtn.textContent = "Hide Description";
-        descBtn.setAttribute("aria-expanded", "true");
-      }
+      showProductModal(product);
     });
 
     productsContainer.appendChild(card);
   });
 }
 
+// Modal creation and logic
+function showProductModal(product) {
+  // Check if modal already exists, remove if so
+  let modal = document.getElementById("productModal");
+  if (modal) modal.remove();
+
+  // Create modal elements
+  modal = document.createElement("div");
+  modal.className = "modal";
+  modal.id = "productModal";
+  modal.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h3>${product.name}</h3>
+          <div class="brand">${product.brand ? product.brand : ""}</div>
+        </div>
+        <button class="close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <img class="modal-product-image" src="${product.image}" alt="${
+    product.name
+  }">
+        <div class="modal-description">${product.description}</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Show modal
+  modal.style.display = "block";
+
+  // Close modal on click of close button or outside modal content
+  modal.querySelector(".close").onclick = () => modal.remove();
+  modal.onclick = (e) => {
+    if (e.target === modal) modal.remove();
+  };
+
+  // Accessibility: close on Escape key
+  document.addEventListener("keydown", function escListener(ev) {
+    if (ev.key === "Escape") {
+      modal.remove();
+      document.removeEventListener("keydown", escListener);
+    }
+  });
+}
+
 // Capitalize first letter
 function capitalize(str) {
+  if (!str) return "";
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
@@ -107,25 +130,67 @@ function toggleProduct(product) {
     selectedProducts.splice(index, 1);
   }
   showProducts(getFilteredProducts());
-  updateSelectedProducts();
+  updateSelectedProductsDisplay();
 }
 
 // Update the Selected Products section
-function updateSelectedProducts() {
-  selectedProductsList.innerHTML = "";
-  selectedProducts.forEach((product) => {
-    const item = document.createElement("div");
-    item.className = "selected-product-item";
-    item.innerHTML = `
-      <span>${product.name}</span>
-      <button class="remove-btn" title="Remove">&times;</button>
+function updateSelectedProductsDisplay() {
+  if (selectedProducts.length === 0) {
+    selectedProductsList.innerHTML = `
+      <div class="empty-selection">
+        No products selected yet. Click on product cards to add them to your routine.
+      </div>
     `;
-    // Remove button
-    item.querySelector(".remove-btn").addEventListener("click", () => {
-      toggleProduct(product);
+    generateButton.disabled = true;
+  } else {
+    selectedProductsList.innerHTML = `
+      <div class="selected-products-header">
+        <span class="selected-count">${selectedProducts.length} product${
+      selectedProducts.length === 1 ? "" : "s"
+    } selected</span>
+        <button class="clear-all-btn" id="clearAllBtn" title="Clear all products">
+          <i class="fas fa-trash"></i> Clear All
+        </button>
+      </div>
+      <div class="selected-products-list">
+        ${selectedProducts
+          .map(
+            (product) => `
+            <div class="selected-product-item">
+              <span>${product.name}</span>
+              <button class="remove-btn" data-id="${product.id}" title="Remove product">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          `
+          )
+          .join("")}
+      </div>
+    `;
+    generateButton.disabled = false;
+
+    // Add event listeners for remove buttons
+    document.querySelectorAll(".remove-btn").forEach((btn) => {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const id = Number(btn.getAttribute("data-id"));
+        selectedProducts = selectedProducts.filter((p) => p.id !== id);
+        showProducts(getFilteredProducts());
+        updateSelectedProductsDisplay();
+      });
     });
-    selectedProductsList.appendChild(item);
-  });
+
+    // Add event listener for clear all
+    const clearAllBtn = document.getElementById("clearAllBtn");
+    if (clearAllBtn) {
+      clearAllBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        selectedProducts = [];
+        showProducts(getFilteredProducts());
+        updateSelectedProductsDisplay();
+      });
+    }
+  }
 }
 
 // Filter products by category
@@ -135,102 +200,184 @@ function getFilteredProducts() {
   return allProducts.filter((p) => p.category === value);
 }
 
-/* Filter and display products when category changes */
-categoryFilter.addEventListener("change", async (e) => {
-  const products = await loadProducts();
-  const selectedCategory = e.target.value;
-
-  /* filter() creates a new array containing only products 
-     where the category matches what the user selected */
-  const filteredProducts = products.filter(
-    (product) => product.category === selectedCategory
-  );
-
-  displayProducts(filteredProducts);
+// Listen for category filter changes
+categoryFilter.addEventListener("change", () => {
+  showProducts(getFilteredProducts());
 });
 
-/* Chat form submission handler - placeholder for OpenAI integration */
-chatForm.addEventListener("submit", (e) => {
-  e.preventDefault();
+// Show initial placeholder until user selects a category
+productsContainer.innerHTML = `
+  <div class="placeholder-message">
+    Select a category to view products
+  </div>
+`;
 
-  chatWindow.innerHTML = "Connect to the OpenAI API for a response!";
-});
+// --- Chat & AI Routine Generation ---
 
-// Get reference to the Generate Routine button
-const generateBtn = document.getElementById("generateRoutine");
+/* Helper: Convert markdown to HTML (basic for beginners) */
+function convertMarkdownToHtml(markdown) {
+  // Simple replacements for bold, italics, and line breaks
+  return markdown
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/\n/g, "<br>");
+}
 
-// Listen for Generate Routine button click
-generateBtn.addEventListener("click", async () => {
-  // If no products are selected, show a message and return
-  if (selectedProducts.length === 0) {
-    chatWindow.innerHTML = `<div class="chat-message bot">Please select at least one product to generate a routine.</div>`;
-    return;
-  }
-
-  // Show loading message in chat window
-  chatWindow.innerHTML = `<div class="chat-message bot">Generating your personalized routine...</div>`;
-
-  // Prepare the messages array for OpenAI API
-  const messages = [
-    {
-      role: "system",
-      content:
-        "You are a helpful skincare and beauty advisor. Create a step-by-step routine using only the provided products. Be clear, friendly, and concise. Use the product names and categories. If a product is not for skin, hair, or makeup, skip it.",
-    },
-    {
-      role: "user",
-      content: `Here are my selected products:\n${JSON.stringify(
-        selectedProducts.map((p) => ({
-          name: p.name,
-          brand: p.brand,
-          category: p.category,
-          description: p.description,
-        })),
-        null,
-        2
-      )}\nPlease generate a personalized routine using only these products.`,
-    },
-  ];
-
+/* Function to send a message to the AI */
+async function sendMessageToAI(userMessage, includeProducts = false) {
   try {
-    // Call the OpenAI API using fetch and async/await
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Show loading message while waiting for response
+    const loadingMessage = `
+      <div class="chat-message ai-message loading">
+        <div class="message-content">
+          <i class="fas fa-spinner fa-spin"></i> Thinking...
+        </div>
+      </div>
+    `;
+    chatWindow.innerHTML += loadingMessage;
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+
+    // Prepare the message with context
+    let systemMessage =
+      "You are a helpful L'Oréal beauty advisor. You ONLY provide personalized skincare and beauty advice related to L'Oréal products, skincare routines, makeup application, and beauty tips. If a user asks about anything unrelated to beauty, skincare, makeup, or L'Oréal products, politely decline and redirect them back to beauty-related topics. Always stay focused on L'Oréal's mission of helping people look and feel their best.";
+
+    // Add selected products context if requested
+    if (includeProducts && selectedProducts.length > 0) {
+      const productContext = selectedProducts
+        .map(
+          (product) =>
+            `${product.name} by ${product.brand} - ${product.description}`
+        )
+        .join("\n");
+
+      systemMessage += ` The user has selected these products: ${productContext}. Please create a personalized routine using these products and provide usage tips.`;
+    }
+
+    // Prepare messages array for OpenAI API
+    const messages = [
+      { role: "system", content: systemMessage },
+      ...conversationHistory,
+      { role: "user", content: userMessage },
+    ];
+
+    // Send request to Cloudflare Worker
+    const response = await fetch(WORKER_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o",
         messages: messages,
-        max_tokens: 400,
+        model: "gpt-4o",
       }),
     });
 
-    const data = await response.json();
-
-    // Check for a valid response and display it
-    if (
-      data &&
-      data.choices &&
-      data.choices[0] &&
-      data.choices[0].message &&
-      data.choices[0].message.content
-    ) {
-      chatWindow.innerHTML = `
-        <div class="chat-message user">Generate a routine for my selected products.</div>
-        <div class="chat-message bot">${data.choices[0].message.content.replace(
-          /\n/g,
-          "<br>"
-        )}</div>
-      `;
-    } else {
-      chatWindow.innerHTML = `<div class="chat-message bot">Sorry, I couldn't generate a routine. Please try again.</div>`;
+    // Remove loading message
+    const loadingElement = chatWindow.querySelector(".loading");
+    if (loadingElement) {
+      loadingElement.remove();
     }
+
+    // Check if response is successful
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+
+    // Parse the response
+    const data = await response.json();
+    const aiResponse = data.choices[0].message.content;
+
+    // Add user message to conversation history
+    conversationHistory.push({ role: "user", content: userMessage });
+
+    // Add AI response to conversation history
+    conversationHistory.push({ role: "assistant", content: aiResponse });
+
+    // Convert markdown to HTML for better formatting
+    const formattedResponse = convertMarkdownToHtml(aiResponse);
+
+    // Display the AI response
+    const aiMessageHtml = `
+      <div class="chat-message ai-message">
+        <div class="message-content">
+          ${formattedResponse}
+        </div>
+      </div>
+    `;
+    chatWindow.innerHTML += aiMessageHtml;
+    chatWindow.scrollTop = chatWindow.scrollHeight;
   } catch (error) {
-    chatWindow.innerHTML = `<div class="chat-message bot">Error: Unable to connect to OpenAI API.</div>`;
+    // Remove loading message if there's an error
+    const loadingElement = chatWindow.querySelector(".loading");
+    if (loadingElement) {
+      loadingElement.remove();
+    }
+
+    // Display error message
+    const errorMessage = `
+      <div class="chat-message error-message">
+        <div class="message-content">
+          Sorry, I encountered an error: ${error.message}. Please try again.
+        </div>
+      </div>
+    `;
+    chatWindow.innerHTML += errorMessage;
+    chatWindow.scrollTop = chatWindow.scrollHeight;
   }
+}
+
+/* Generate Routine button click handler */
+generateButton.addEventListener("click", async () => {
+  if (selectedProducts.length === 0) {
+    return; // Button should be disabled anyway
+  }
+
+  // Clear chat window for the routine generation
+  chatWindow.innerHTML = `
+    <div class="chat-message user-message">
+      <div class="message-content">
+        Please create a personalized routine using my selected products.
+      </div>
+    </div>
+  `;
+
+  // Generate routine based on selected products
+  await sendMessageToAI(
+    "Please create a detailed morning and evening skincare/beauty routine using the products I've selected. Include step-by-step instructions, tips for best results, and any important considerations.",
+    true // include products context
+  );
+});
+
+/* Chat form submission handler */
+chatForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  // Get the user's message
+  const userInput = document.getElementById("userInput");
+  const userMessage = userInput.value.trim();
+
+  if (!userMessage) {
+    return; // Don't send empty messages
+  }
+
+  // Display user message in chat
+  const userMessageHtml = `
+    <div class="chat-message user-message">
+      <div class="message-content">
+        ${userMessage}
+      </div>
+    </div>
+  `;
+  chatWindow.innerHTML += userMessageHtml;
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+
+  // Clear the input field
+  userInput.value = "";
+
+  // Send message to AI
+  await sendMessageToAI(userMessage, false);
 });
 
 // Initial load
 loadProducts();
+updateSelectedProductsDisplay();
