@@ -33,19 +33,20 @@
 
       <!-- Category Filter -->
       <div class="search-section">
-        <select id="categoryFilter">
-          <option value="" disabled selected>Choose a Category</option>
-          <option value="cleanser">Cleansers</option>
-          <option value="moisturizer">Moisturizers & Treatments</option>
-          <option value="skincare">Skincare & Serums</option>
-          <option value="haircare">Haircare</option>
-          <option value="makeup">Makeup</option>
-          <option value="hair color">Hair Color</option>
-          <option value="hair styling">Hair Styling</option>
-          <option value="men's grooming">Men's Grooming</option>
-          <option value="suncare">Suncare</option>
-          <option value="fragrance">Fragrance</option>
-        </select>
+        <div class="search-inputs">
+          <!-- Simplified category filter - JavaScript will populate the options -->
+          <select id="categoryFilter" aria-label="Filter by category">
+            <!-- JavaScript will dynamically add all category options based on products.json -->
+          </select>
+
+          <!-- Keep the search input as is -->
+          <input
+            type="text"
+            id="productSearch"
+            placeholder="Search products by name or keyword..."
+            aria-label="Search products"
+          />
+        </div>
       </div>
 
       <!-- Products Grid -->

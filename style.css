@@ -59,10 +59,20 @@ body {
 .search-section {
   margin: 30px;
   display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
-.search-section select {
-  width: 100%;
+.search-inputs {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.search-inputs select,
+.search-inputs input {
+  flex: 1;
+  min-width: 200px;
   padding: 16px;
   font-size: 18px;
   border: 2px solid var(--loreal-gold);
@@ -74,7 +84,12 @@ body {
   transition: all 0.3s ease;
 }
 
-.search-section select:focus {
+.search-inputs input {
+  cursor: text;
+}
+
+.search-inputs select:focus,
+.search-inputs input:focus {
   outline: none;
   border-color: var(--loreal-red);
   box-shadow: 0 0 0 3px rgba(255, 0, 59, 0.1);
