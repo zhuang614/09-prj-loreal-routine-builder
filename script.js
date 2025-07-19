@@ -121,19 +121,43 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// Add or remove product from selection
+// Load saved selected products from localStorage when the page loads
+function loadSavedProducts() {
+  // Get saved products from localStorage (returns null if nothing is saved)
+  const savedProducts = localStorage.getItem("selectedProducts");
+
+  // If we have saved products, parse them and update our list
+  if (savedProducts) {
+    selectedProducts = JSON.parse(savedProducts);
+  }
+}
+
+// Save selected products to localStorage
+function saveProductsToStorage() {
+  // Convert our selectedProducts array to JSON and save it
+  localStorage.setItem("selectedProducts", JSON.stringify(selectedProducts));
+}
+
+// Add or remove product from selection (updated to save to localStorage)
 function toggleProduct(product) {
   const index = selectedProducts.findIndex((p) => p.id === product.id);
   if (index === -1) {
+    // Product not selected, so add it
     selectedProducts.push(product);
   } else {
+    // Product already selected, so remove it
     selectedProducts.splice(index, 1);
   }
+
+  // Save the updated list to localStorage
+  saveProductsToStorage();
+
+  // Update the display
   showProducts(getFilteredProducts());
   updateSelectedProductsDisplay();
 }
 
-// Update the Selected Products section
+// Update the Selected Products section (updated to save to localStorage when clearing)
 function updateSelectedProductsDisplay() {
   if (selectedProducts.length === 0) {
     selectedProductsList.innerHTML = `
@@ -169,23 +193,35 @@ function updateSelectedProductsDisplay() {
     `;
     generateButton.disabled = false;
 
-    // Add event listeners for remove buttons
+    // Add event listeners for remove buttons (updated to save to localStorage)
     document.querySelectorAll(".remove-btn").forEach((btn) => {
       btn.addEventListener("click", function (e) {
         e.stopPropagation();
         const id = Number(btn.getAttribute("data-id"));
+        // Remove the product from our list
         selectedProducts = selectedProducts.filter((p) => p.id !== id);
+
+        // Save the updated list to localStorage
+        saveProductsToStorage();
+
+        // Update the display
         showProducts(getFilteredProducts());
         updateSelectedProductsDisplay();
       });
     });
 
-    // Add event listener for clear all
+    // Add event listener for clear all (updated to save to localStorage)
     const clearAllBtn = document.getElementById("clearAllBtn");
     if (clearAllBtn) {
       clearAllBtn.addEventListener("click", function (e) {
         e.stopPropagation();
+        // Clear all selected products
         selectedProducts = [];
+
+        // Save the empty list to localStorage
+        saveProductsToStorage();
+
+        // Update the display
         showProducts(getFilteredProducts());
         updateSelectedProductsDisplay();
       });
@@ -341,9 +377,9 @@ generateButton.addEventListener("click", async () => {
     </div>
   `;
 
-  // Generate routine based on selected products
+  // Generate a complete and detailed routine based on selected products
   await sendMessageToAI(
-    "Please create a detailed morning and evening skincare/beauty routine using the products I've selected. Include step-by-step instructions, tips for best results, and any important considerations.",
+    "Please create a comprehensive, step-by-step skincare and beauty routine using ONLY the products I've selected. Please include: 1) A complete morning routine with exact order of application, 2) A complete evening routine with exact order of application, 3) Detailed instructions for each product including how much to use and application techniques, 4) Wait times between products if needed, 5) Tips for best results, 6) Any important warnings or considerations. Be thorough and specific in your instructions.",
     true // include products context
   );
 });
@@ -378,6 +414,7 @@ chatForm.addEventListener("submit", async (e) => {
   await sendMessageToAI(userMessage, false);
 });
 
-// Initial load
-loadProducts();
-updateSelectedProductsDisplay();
+// Initial load (updated to load saved products)
+loadSavedProducts(); // Load saved products first
+loadProducts(); // Then load all products and show them
+updateSelectedProductsDisplay(); // Update the display with saved products
