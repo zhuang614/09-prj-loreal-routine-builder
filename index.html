@@ -13,6 +13,9 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
     />
     <link rel="stylesheet" href="style.css" />
+    <!-- Add these meta tags in your <head> section -->
+    <meta name="google-translate-customization" content="enabled" />
+    <meta name="google" content="notranslate" value="false" />
   </head>
 
   <body>
@@ -22,6 +25,11 @@
         <img src="img/loreal-logo.png" alt="L'Oréal Logo" class="logo" />
         <h1 class="site-title">Smart Routine &amp; Product Advisor</h1>
       </header>
+
+      <!-- Google Translate Widget -->
+      <div class="google-translate-widget">
+        <div id="google_translate_element"></div>
+      </div>
 
       <!-- Category Filter -->
       <div class="search-section">
@@ -88,5 +96,23 @@
     <!-- secrets.js can be removed when using Cloudflare Workers for API requests -->
     <script src="secrets.js"></script>
     <script src="script.js"></script>
+
+    <!-- Google Translate Script -->
+    <script type="text/javascript">
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement(
+          {
+            pageLanguage: "en",
+            layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+            autoDisplay: false,
+          },
+          "google_translate_element"
+        );
+      }
+    </script>
+    <script
+      type="text/javascript"
+      src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"
+    ></script>
   </body>
 </html>
