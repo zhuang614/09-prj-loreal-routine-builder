@@ -9,7 +9,7 @@ const chatForm = document.getElementById("chatForm");
 const chatWindow = document.getElementById("chatWindow");
 
 /* Cloudflare Worker endpoint for AI API */
-const WORKER_ENDPOINT = "https://loreal-chatbot.zhuang61.workers.dev/";
+const WORKER_ENDPOINT = "https://loreal-routine-builder.zhuang61.workers.dev/";
 
 // Store all products and selected products
 let allProducts = [];
