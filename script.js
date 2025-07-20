@@ -22,35 +22,30 @@ let conversationHistory = [];
 // Store the full chat history for follow-up questions
 let chatHistory = [];
 
-// Check if current language is RTL (comprehensive list for beginners)
-function isRTLLanguage(language) {
-  const RTL_LANGUAGES = [
-    "ar",
-    "he",
-    "fa",
-    "ur",
-    "arc",
-    "dv",
-    "syr",
-    "ps",
-    "sd",
-    "ug",
-    "yi",
-    "az",
-    "ku",
-    "ff",
-  ];
-  return RTL_LANGUAGES.includes(language);
-}
+// Constants for better maintainability (beginner-friendly)
+const RTL_LANGUAGES = [
+  "ar", "he", "fa", "ur", "arc", "dv", "syr", "ps", 
+  "sd", "ug", "yi", "az", "ku", "ff", "ha", "ms",
+  "ckb", "prs", "bal", "bqi", "glk", "lrc", "mzn"
+];
 
-// Load saved language preference
-function loadSavedLanguage() {
-  const savedLanguage = localStorage.getItem("selectedLanguage");
-  if (savedLanguage) {
-    applyLanguageDirection(savedLanguage);
-  } else {
-    applyLanguageDirection("en");
-  }
+const RTL_CHAR_PATTERN = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
+const DIRECTION_SELECTORS = [
+  ".product-card", ".product-name", ".product-category", ".product-brand",
+  ".desc-btn", ".selected-product-item", ".chat-message", ".message-content",
+  ".placeholder-message", ".empty-selection", ".modal-content", ".modal-header",
+  ".modal-description", "#categoryFilter", "#categoryFilter option", "#productSearch"
+];
+
+// FIXED: Better conflict prevention variables
+let isTranslating = false; // Track if Google Translate is active
+let translationTimeout = null; // Track translation timeouts
+let lastLanguage = "en"; // Track last detected language
+
+// Enhanced RTL language detection (comprehensive list for beginners)
+function isRTLLanguage(language) {
+  return RTL_LANGUAGES.includes(language);
 }
 
 // Helper function to get current direction
@@ -58,11 +53,314 @@ function getCurrentDirection() {
   return document.documentElement.getAttribute("dir") || "ltr";
 }
 
-// Helper functions
+// Helper function to capitalize strings (beginner-friendly)
 function capitalize(str) {
   return str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 }
 
+// FIXED: Completely prevent conflicts during translation
+function setTranslationMode(enabled) {
+  isTranslating = enabled;
+  
+  if (enabled) {
+    console.log("Translation mode ENABLED - all monitoring disabled");
+    // Clear any existing timeout
+    if (translationTimeout) {
+      clearTimeout(translationTimeout);
+    }
+    // Auto-disable translation mode after 5 seconds
+    translationTimeout = setTimeout(() => {
+      isTranslating = false;
+      console.log("Translation mode DISABLED - monitoring resumed");
+    }, 5000);
+  } else {
+    console.log("Translation mode DISABLED - monitoring resumed");
+  }
+}
+
+// Unified function to apply direction formatting (reduces duplication)
+function applyDirectionFormatting(direction) {
+  // Don't apply formatting if we're translating
+  if (isTranslating) {
+    console.log("Skipping direction formatting - translation in progress");
+    return;
+  }
+
+  const html = document.documentElement;
+  const body = document.body;
+  const isRTL = direction === "rtl";
+
+  // Set direction attributes and styles for persistence
+  html.setAttribute("dir", direction);
+  html.style.direction = direction;
+  body.style.direction = direction;
+
+  // Update CSS classes
+  if (isRTL) {
+    body.classList.add("rtl-layout");
+    body.classList.remove("ltr-layout");
+  } else {
+    body.classList.add("ltr-layout");
+    body.classList.remove("rtl-layout");
+  }
+
+  // Update all elements with the new direction
+  updateAllElementsDirection(direction);
+
+  console.log(`Applied ${direction.toUpperCase()} formatting to page`);
+
+  // Refresh layout to apply changes to all components
+  refreshLayoutForDirection(direction);
+}
+
+// New function to apply RTL formatting (beginner-friendly)
+function applyRTLFormatting() {
+  applyDirectionFormatting("rtl");
+}
+
+// New function to apply LTR formatting (beginner-friendly)
+function applyLTRFormatting() {
+  applyDirectionFormatting("ltr");
+}
+
+// Enhanced updateAllElementsDirection with better persistence
+function updateAllElementsDirection(direction) {
+  // Don't update if we're translating
+  if (isTranslating) {
+    return;
+  }
+
+  // Update direction for each element type using the constant array
+  DIRECTION_SELECTORS.forEach((selector) => {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach((element) => {
+      element.setAttribute("dir", direction);
+      // Add inline style for better persistence during translation
+      element.style.direction = direction;
+    });
+  });
+
+  console.log(`Updated ${DIRECTION_SELECTORS.length} element types with ${direction} direction`);
+}
+
+// FIXED: Completely disabled RTL detection during translation
+function detectRTLFromPageContent() {
+  // COMPLETELY SKIP if translating
+  if (isTranslating) {
+    console.log("Skipping RTL detection - translation in progress");
+    return;
+  }
+
+  // Get all text content from the page
+  const pageText = document.body.textContent || document.body.innerText || "";
+
+  // Count RTL vs LTR characters for better detection
+  const rtlMatches = pageText.match(RTL_CHAR_PATTERN);
+  const rtlCount = rtlMatches ? rtlMatches.length : 0;
+  const totalChars = pageText.replace(/\s/g, "").length;
+  const rtlPercentage = totalChars > 0 ? (rtlCount / totalChars) * 100 : 0;
+
+  console.log(`RTL character detection: ${rtlCount} RTL chars, ${rtlPercentage.toFixed(1)}% RTL content`);
+
+  // FIXED: Much higher threshold to prevent false switching (50% instead of 30%)
+  const currentDir = getCurrentDirection();
+  const shouldBeRTL = rtlPercentage > 50;
+
+  // Only switch if there's a VERY significant difference
+  if (shouldBeRTL && currentDir !== "rtl") {
+    console.log("Detected VERY significant RTL content - applying RTL formatting");
+    applyRTLFormatting();
+  } else if (!shouldBeRTL && currentDir !== "ltr" && rtlPercentage < 2) {
+    // Only switch to LTR if RTL content is almost zero (less than 2%)
+    console.log("Detected almost no RTL content - applying LTR formatting");
+    applyLTRFormatting();
+  }
+}
+
+// FIXED: Completely rebuilt category filter update to prevent conflicts
+function updateCategoryFilter(categories, direction, selectedValue = "") {
+  // COMPLETELY SKIP if translating
+  if (isTranslating) {
+    console.log("Skipping category filter update - translation in progress");
+    return;
+  }
+
+  // Only update if we actually have categories and the filter exists
+  if (!categoryFilter || !categories || categories.length === 0) {
+    return;
+  }
+
+  // Store current selection if not provided
+  if (!selectedValue) {
+    selectedValue = categoryFilter.value;
+  }
+
+  // Clear and rebuild
+  categoryFilter.innerHTML = "";
+  categoryFilter.setAttribute("dir", direction);
+  categoryFilter.style.direction = direction;
+
+  // Create default option
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "Selected Category";
+  defaultOption.setAttribute("dir", direction);
+  defaultOption.style.direction = direction;
+  categoryFilter.appendChild(defaultOption);
+
+  // Add category options
+  const sortedCategories = categories.sort();
+  sortedCategories.forEach((category) => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = capitalize(category);
+    option.setAttribute("dir", direction);
+    option.style.direction = direction;
+    categoryFilter.appendChild(option);
+  });
+
+  // Restore selection
+  if (selectedValue) {
+    categoryFilter.value = selectedValue;
+  }
+
+  console.log(`Category filter updated with ${direction} direction (${categories.length} options)`);
+}
+
+// Enhanced createCategoryFilterOptions with translation support
+function createCategoryFilterOptions(categories) {
+  const currentDir = getCurrentDirection();
+  const currentLang = document.documentElement.getAttribute("lang") || "en";
+
+  updateCategoryFilter(categories, currentDir);
+
+  console.log(`Category filter created with translation support for ${currentLang} (${currentDir})`);
+  console.log(`Added ${categories.length} category options`);
+}
+
+// FIXED: Only update direction, never rebuild during translation
+function maintainCategoryFilterDirection() {
+  // COMPLETELY SKIP if translating
+  if (isTranslating) {
+    return;
+  }
+
+  const currentDir = getCurrentDirection();
+
+  if (categoryFilter) {
+    // Only update direction attributes, don't touch content
+    categoryFilter.setAttribute("dir", currentDir);
+    categoryFilter.style.direction = currentDir;
+
+    // Update direction for existing options
+    const options = categoryFilter.querySelectorAll("option");
+    options.forEach((option) => {
+      option.setAttribute("dir", currentDir);
+      option.style.direction = currentDir;
+    });
+
+    console.log(`Category filter direction maintained: ${currentDir}`);
+  }
+}
+
+// FIXED: Minimal category filter update for translation
+function updateCategoryFilterForTranslation(language) {
+  // COMPLETELY SKIP if translating or no filter
+  if (isTranslating || !categoryFilter) {
+    return;
+  }
+
+  // Only update direction, never rebuild
+  const newDirection = isRTLLanguage(language) ? "rtl" : "ltr";
+  
+  categoryFilter.setAttribute("dir", newDirection);
+  categoryFilter.style.direction = newDirection;
+
+  // Update existing options direction only
+  const options = categoryFilter.querySelectorAll("option");
+  options.forEach((option) => {
+    option.setAttribute("dir", newDirection);
+    option.style.direction = newDirection;
+  });
+
+  console.log(`Category filter direction updated for translation: ${language} (${newDirection})`);
+}
+
+// FIXED: Much better language change handling
+function handleLanguageChange(language) {
+  // Skip if same language
+  if (language === lastLanguage) {
+    return;
+  }
+
+  console.log(`Handling language change from ${lastLanguage} to: ${language}`);
+  lastLanguage = language;
+
+  // Enable translation mode to prevent conflicts
+  setTranslationMode(true);
+
+  // Apply appropriate formatting based on language
+  if (isRTLLanguage(language)) {
+    console.log(`${language} is an RTL language - applying RTL formatting`);
+    applyRTLFormatting();
+    // Set additional attributes to help maintain RTL
+    document.documentElement.style.direction = "rtl";
+    document.body.style.direction = "rtl";
+  } else {
+    console.log(`${language} is an LTR language - applying LTR formatting`);
+    applyLTRFormatting();
+    // Set additional attributes for LTR
+    document.documentElement.style.direction = "ltr";
+    document.body.style.direction = "ltr";
+  }
+
+  // Only update category filter direction after a longer delay
+  setTimeout(() => {
+    updateCategoryFilterForTranslation(language);
+    // Keep translation mode enabled longer
+    setTimeout(() => {
+      setTranslationMode(false);
+    }, 3000);
+  }, 2000);
+}
+
+// FIXED: Completely rebuilt language monitoring with minimal conflicts
+function setupLanguageMonitoring() {
+  // ONLY watch for language attribute changes (nothing else)
+  const languageObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === "attributes" && mutation.attributeName === "lang") {
+        const newLang = document.documentElement.getAttribute("lang");
+        
+        // Skip if same language or if we're already translating
+        if (newLang === lastLanguage || isTranslating) {
+          return;
+        }
+
+        console.log(`Google Translate changed language to: ${newLang}`);
+
+        // Enable translation mode immediately
+        setTranslationMode(true);
+
+        // Handle language change with longer delay
+        setTimeout(() => {
+          handleLanguageChange(newLang);
+        }, 3000); // Longer delay to let Google Translate completely finish
+      }
+    });
+  });
+
+  // Only observe language changes
+  languageObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["lang"]
+  });
+
+  // COMPLETELY REMOVED content observer to prevent all conflicts
+  console.log("Simplified language monitoring setup complete (no content observer)");
+}
+
+// Load saved products from localStorage
 function loadSavedProducts() {
   const savedProducts = localStorage.getItem("selectedProducts");
   if (savedProducts) {
@@ -70,6 +368,7 @@ function loadSavedProducts() {
   }
 }
 
+// Save products to localStorage
 function saveProductsToStorage() {
   localStorage.setItem("selectedProducts", JSON.stringify(selectedProducts));
 }
@@ -83,21 +382,20 @@ async function loadProducts() {
     allProducts = data.products;
 
     // Get all unique categories from the products (for beginners to understand)
-    const categories = [
-      ...new Set(allProducts.map((product) => product.category)),
-    ];
+    const categories = [...new Set(allProducts.map((product) => product.category))];
     console.log("Available categories in products.json:", categories);
 
     // Log product count for each category (helpful for debugging)
     categories.forEach((category) => {
-      const count = allProducts.filter(
-        (product) => product.category === category
-      ).length;
+      const count = allProducts.filter((product) => product.category === category).length;
       console.log(`Category "${category}" has ${count} products`);
     });
 
     // Create the category filter dropdown completely from product data
     createCategoryFilterOptions(categories);
+
+    // Setup language monitoring for Google Translate
+    setupLanguageMonitoring();
 
     // Show initial placeholder message
     productsContainer.innerHTML = `
@@ -115,45 +413,11 @@ async function loadProducts() {
   }
 }
 
-// Create category filter options completely from product data (no hardcoded HTML)
-function createCategoryFilterOptions(categories) {
-  // Get current language direction for proper text alignment
-  const currentDir = getCurrentDirection();
-
-  // Clear all existing options first
-  categoryFilter.innerHTML = "";
-
-  // Create "Selected Category" option first
-  const defaultOption = document.createElement("option");
-  defaultOption.value = "";
-  defaultOption.textContent = "Selected Category";
-  defaultOption.setAttribute("dir", currentDir);
-  categoryFilter.appendChild(defaultOption);
-
-  // Sort categories alphabetically for better user experience
-  const sortedCategories = categories.sort();
-
-  // Add an option for each category found in the products data
-  sortedCategories.forEach((category) => {
-    const option = document.createElement("option");
-    option.value = category;
-    // Capitalize the category name for display (beginner-friendly helper)
-    option.textContent = capitalize(category);
-    option.setAttribute("dir", currentDir);
-    categoryFilter.appendChild(option);
-  });
-
-  console.log("Category filter created completely from products.json data");
-  console.log(`Added ${sortedCategories.length} category options`);
-}
-
 // Enhanced getFilteredProducts function with better debugging
 function getFilteredProducts() {
   // Get the selected category and search term
   const categoryValue = categoryFilter.value;
-  const searchValue = productSearch
-    ? productSearch.value.toLowerCase().trim()
-    : "";
+  const searchValue = productSearch ? productSearch.value.toLowerCase().trim() : "";
 
   // Debug logs to help beginners understand what's happening
   console.log(`Category filter: "${categoryValue}"`);
@@ -168,9 +432,7 @@ function getFilteredProducts() {
     filteredProducts = filteredProducts.filter((product) => {
       const matches = product.category === categoryValue;
       if (!matches) {
-        console.log(
-          `Product "${product.name}" category "${product.category}" doesn't match "${categoryValue}"`
-        );
+        console.log(`Product "${product.name}" category "${product.category}" doesn't match "${categoryValue}"`);
       }
       return matches;
     });
@@ -178,9 +440,7 @@ function getFilteredProducts() {
 
     // If no products found, show available categories for debugging
     if (filteredProducts.length === 0) {
-      const availableCategories = [
-        ...new Set(allProducts.map((product) => product.category)),
-      ];
+      const availableCategories = [...new Set(allProducts.map((product) => product.category))];
       console.log("Available categories:", availableCategories);
     }
   }
@@ -191,9 +451,7 @@ function getFilteredProducts() {
       // Search in product name, brand, and description (beginner-friendly approach)
       const productName = product.name.toLowerCase();
       const productBrand = product.brand ? product.brand.toLowerCase() : "";
-      const productDescription = product.description
-        ? product.description.toLowerCase()
-        : "";
+      const productDescription = product.description ? product.description.toLowerCase() : "";
 
       return (
         productName.includes(searchValue) ||
@@ -227,8 +485,7 @@ function showProducts(products) {
     } else if (isFiltering) {
       message = `No products found in ${categoryFilter.value} category.`;
     } else {
-      message =
-        "Please select a category or search for products to get started.";
+      message = "Please select a category or search for products to get started.";
     }
 
     productsContainer.innerHTML = `
@@ -252,12 +509,8 @@ function showProducts(products) {
     card.innerHTML = `
       <img src="${product.image}" alt="${product.name}">
       <div class="product-name" dir="${currentDir}">${product.name}</div>
-      <div class="product-category" dir="${currentDir}">${capitalize(
-      product.category
-    )}</div>
-      <div class="product-brand" dir="${currentDir}">${
-      product.brand || ""
-    }</div>
+      <div class="product-category" dir="${currentDir}">${capitalize(product.category)}</div>
+      <div class="product-brand" dir="${currentDir}">${product.brand || ""}</div>
       <button class="desc-btn" aria-haspopup="dialog" dir="${currentDir}">Show Description</button>
     `;
 
@@ -308,12 +561,8 @@ function showProductModal(product) {
         <button class="close" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body" dir="${currentDir}">
-        <img class="modal-product-image" src="${product.image}" alt="${
-    product.name
-  }">
-        <div class="modal-description" dir="${currentDir}">${
-    product.description
-  }</div>
+        <img class="modal-product-image" src="${product.image}" alt="${product.name}">
+        <div class="modal-description" dir="${currentDir}">${product.description}</div>
       </div>
     </div>
   `;
@@ -347,11 +596,7 @@ function toggleProduct(product) {
   showProducts(getFilteredProducts());
   updateSelectedProductsDisplay();
 
-  console.log(
-    `Product ${product.name} ${
-      index === -1 ? "added to" : "removed from"
-    } selection`
-  );
+  console.log(`Product ${product.name} ${index === -1 ? "added to" : "removed from"} selection`);
 }
 
 // Update the Selected Products section
@@ -368,26 +613,20 @@ function updateSelectedProductsDisplay() {
   } else {
     selectedProductsList.innerHTML = `
       <div class="selected-products-header" dir="${currentDir}">
-        <span class="selected-count">${selectedProducts.length} product${
-      selectedProducts.length === 1 ? "" : "s"
-    } selected</span>
+        <span class="selected-count">${selectedProducts.length} product${selectedProducts.length === 1 ? "" : "s"} selected</span>
         <button class="clear-all-btn" id="clearAllBtn" title="Clear all products">
           <i class="fas fa-trash"></i> Clear All
         </button>
       </div>
       <div class="selected-products-list" dir="${currentDir}">
-        ${selectedProducts
-          .map(
-            (product) => `
+        ${selectedProducts.map((product) => `
           <div class="selected-product-item" dir="${currentDir}">
             <span dir="${currentDir}">${product.name}</span>
             <button class="remove-btn" data-id="${product.id}" title="Remove product">
               <i class="fas fa-times"></i>
             </button>
           </div>
-        `
-          )
-          .join("")}
+        `).join("")}
       </div>
     `;
     generateButton.disabled = false;
@@ -445,16 +684,12 @@ async function sendMessageToAI(userMessage, includeProducts = false) {
     chatWindow.scrollTop = chatWindow.scrollHeight;
 
     // Prepare system message
-    let systemMessage =
-      "You are a helpful L'Oréal beauty advisor. You ONLY provide personalized skincare and beauty advice related to L'Oréal products, skincare routines, makeup application, and beauty tips. If a user asks about anything unrelated to beauty, skincare, makeup, or L'Oréal products, politely decline and redirect them back to beauty-related topics. Always stay focused on L'Oréal's mission of helping people look and feel their best.";
+    let systemMessage = "You are a helpful L'Oréal beauty advisor. You ONLY provide personalized skincare and beauty advice related to L'Oréal products, skincare routines, makeup application, and beauty tips. If a user asks about anything unrelated to beauty, skincare, makeup, or L'Oréal products, politely decline and redirect them back to beauty-related topics. Always stay focused on L'Oréal's mission of helping people look and feel their best.";
 
     // Add selected products context if requested
     if (includeProducts && selectedProducts.length > 0) {
       const productContext = selectedProducts
-        .map(
-          (product) =>
-            `${product.name} by ${product.brand} - ${product.description}`
-        )
+        .map((product) => `${product.name} by ${product.brand} - ${product.description}`)
         .join("\n");
       systemMessage += ` The user has selected these products: ${productContext}. Please create a personalized routine using these products and provide usage tips.`;
     }
@@ -463,14 +698,14 @@ async function sendMessageToAI(userMessage, includeProducts = false) {
     const messages = [
       { role: "system", content: systemMessage },
       ...conversationHistory,
-      { role: "user", content: userMessage },
+      { role: "user", content: userMessage }
     ];
 
     // Send request to Cloudflare Worker using async/await
     const response = await fetch(WORKER_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, model: "gpt-4o" }),
+      body: JSON.stringify({ messages, model: "gpt-4o" })
     });
 
     // Remove loading message
@@ -520,71 +755,61 @@ async function sendMessageToAI(userMessage, includeProducts = false) {
   }
 }
 
-// RTL Language Support Functions
-function detectRTLFromPageContent() {
-  const pageText = document.body.textContent || document.body.innerText || "";
-  const rtlCharPattern =
-    /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
-
-  if (rtlCharPattern.test(pageText)) {
-    const currentDir = document.documentElement.getAttribute("dir");
-    if (currentDir !== "rtl") {
-      document.documentElement.setAttribute("dir", "rtl");
-      document.body.classList.add("rtl-layout");
-      document.body.classList.remove("ltr-layout");
-      console.log("Detected RTL characters, applied RTL formatting");
-      refreshLayout();
-    }
-  } else {
-    const currentDir = document.documentElement.getAttribute("dir");
-    if (currentDir !== "ltr") {
-      restoreToNormalFormatting();
-    }
+// FIXED: Enhanced refreshLayout function that respects translation mode
+function refreshLayoutForDirection(direction) {
+  // COMPLETELY SKIP if translating
+  if (isTranslating) {
+    console.log("Skipping layout refresh - translation in progress");
+    return;
   }
-}
 
-function restoreToNormalFormatting() {
-  document.documentElement.setAttribute("dir", "ltr");
-  document.documentElement.setAttribute("lang", "en");
-  document.body.classList.add("ltr-layout");
-  document.body.classList.remove("rtl-layout");
-  console.log("Website restored to normal LTR formatting");
-  refreshLayout();
-}
-
-function refreshLayout() {
-  // Update category filter options with proper text direction
-  const categories = [
-    ...new Set(allProducts.map((product) => product.category)),
-  ];
+  // Update category filter options with proper text direction and translation support
+  const categories = [...new Set(allProducts.map((product) => product.category))];
   createCategoryFilterOptions(categories);
 
   // Refresh the displayed products
   const currentFilter = getFilteredProducts();
   showProducts(currentFilter);
   updateSelectedProductsDisplay();
+
+  // Ensure all elements maintain proper direction
+  updateAllElementsDirection(direction);
+
+  console.log(`Layout refreshed for ${direction} direction with translation support`);
+}
+
+function refreshLayout() {
+  const currentDir = getCurrentDirection();
+  refreshLayoutForDirection(currentDir);
+}
+
+function restoreToNormalFormatting() {
+  applyLTRFormatting();
 }
 
 function applyLanguageDirection(language) {
-  const body = document.body;
-  const html = document.documentElement;
+  const direction = isRTLLanguage(language) ? "rtl" : "ltr";
 
-  if (isRTLLanguage(language)) {
-    html.setAttribute("dir", "rtl");
-    html.setAttribute("lang", language);
-    body.classList.add("rtl-layout");
-    body.classList.remove("ltr-layout");
-    console.log(`Applied RTL formatting for language: ${language}`);
-  } else {
-    html.setAttribute("dir", "ltr");
-    html.setAttribute("lang", language);
-    body.classList.add("ltr-layout");
-    body.classList.remove("rtl-layout");
-    console.log(`Applied normal LTR formatting for language: ${language}`);
-  }
+  // Apply direction formatting
+  applyDirectionFormatting(direction);
+
+  // Set language attribute
+  document.documentElement.setAttribute("lang", language);
+
+  console.log(`Applied ${direction.toUpperCase()} formatting for language: ${language}`);
 
   // Save language preference to localStorage for beginners to understand persistence
   localStorage.setItem("selectedLanguage", language);
+}
+
+// Load saved language preference
+function loadSavedLanguage() {
+  const savedLanguage = localStorage.getItem("selectedLanguage");
+  if (savedLanguage) {
+    applyLanguageDirection(savedLanguage);
+  } else {
+    applyLanguageDirection("en");
+  }
 }
 
 // Initialize the app when DOM is loaded
@@ -617,8 +842,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (generateButton) {
     generateButton.addEventListener("click", () => {
       if (selectedProducts.length > 0) {
-        const userMessage =
-          "Please create a personalized beauty routine using my selected products.";
+        const userMessage = "Please create a personalized beauty routine using my selected products.";
         // Add user message to chat
         const currentDir = getCurrentDirection();
         const userMessageHtml = `
@@ -631,7 +855,7 @@ document.addEventListener("DOMContentLoaded", () => {
         chatWindow.innerHTML += userMessageHtml;
         chatWindow.scrollTop = chatWindow.scrollHeight;
 
-        // Send to AI with products included
+        // Send to AI with products included using gpt-4o model
         sendMessageToAI(userMessage, true);
       }
     });
@@ -660,11 +884,11 @@ document.addEventListener("DOMContentLoaded", () => {
         // Clear input
         userInput.value = "";
 
-        // Send to AI
+        // Send to AI using gpt-4o model
         sendMessageToAI(userMessage, false);
       }
     });
   }
 
-  console.log("L'Oréal Routine Builder initialized successfully");
+  console.log("L'Oréal Routine Builder initialized successfully with RTL/LTR support");
 });
